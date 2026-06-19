@@ -120,5 +120,4 @@ The SBP workflow provides tools for importing acoustic profiles, applying correc
   - **Compute Reflector Depth**: Calculate the absolute depth of digitized reflectors using applied vertical shifts and sound velocities.
   - **Calculate Thickness**: Compute the true thickness of geological units between bounded reflector horizons.
 
----
-*Generated automatically by Marine GeoTools Plugin analyzer.*
+
