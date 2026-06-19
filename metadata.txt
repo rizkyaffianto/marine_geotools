@@ -1,0 +1,13 @@
+[general]
+name=Marine GeoTools
+qgisMinimumVersion=3.28
+description=Unified analogue marine geophysics processing plugin (MAG and SBP)
+version=0.1.0
+author=Rizky Affianto
+email=rizkyaffianto@gmail.com
+about=Provides a Processing provider with MAG and SBP processing algorithms, along with interactive viewers (Profile Plot and SBP Viewer).
+category=Analysis
+icon=icons/icon.svg
+
+[experimental]
+experimental=true

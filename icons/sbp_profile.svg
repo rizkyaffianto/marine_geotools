@@ -1,0 +1,16 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Trace 1 -->
+  <line x1="16" y1="6" x2="16" y2="60" stroke="#000000" stroke-width="1.5" />
+  <path d="M16,10 C24,12 24,16 16,18 C8,20 8,24 16,26 C28,28 28,36 16,38 C8,40 8,44 16,46 C24,48 24,56 16,58" fill="none" stroke="#000000" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M16,10 C24,12 24,16 16,18 Z M16,26 C28,28 28,36 16,38 Z M16,46 C24,48 24,56 16,58 Z" fill="#000000" />
+
+  <!-- Trace 2 (slightly offset vertically) -->
+  <line x1="32" y1="6" x2="32" y2="60" stroke="#000000" stroke-width="1.5" />
+  <path d="M32,12 C40,14 40,18 32,20 C24,22 24,26 32,28 C44,30 44,38 32,40 C24,42 24,46 32,48 C40,50 40,58 32,60" fill="none" stroke="#000000" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M32,12 C40,14 40,18 32,20 Z M32,28 C44,30 44,38 32,40 Z M32,48 C40,50 40,58 32,60 Z" fill="#000000" />
+
+  <!-- Trace 3 -->
+  <line x1="48" y1="6" x2="48" y2="60" stroke="#000000" stroke-width="1.5" />
+  <path d="M48,10 C56,12 56,16 48,18 C40,20 40,24 48,26 C60,28 60,36 48,38 C40,40 40,44 48,46 C56,48 56,56 48,58" fill="none" stroke="#000000" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M48,10 C56,12 56,16 48,18 Z M48,26 C60,28 60,36 48,38 Z M48,46 C56,48 56,56 48,58 Z" fill="#000000" />
+</svg>
