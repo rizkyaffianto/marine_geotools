@@ -1504,6 +1504,9 @@ class SBPViewerRaw(QtWidgets.QWidget):
             x = float(m.get("trace", 0))
             if x < 0 or x > (n_traces - 1):
                 continue
+            
+            if m.get("borehole"):
+                continue
 
             vline = pg.InfiniteLine(pos=x, angle=90, pen=pen, movable=False)
             vline.setZValue(5000)
