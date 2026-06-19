@@ -600,6 +600,8 @@ class SBPMarkersDialog(QtWidgets.QDialog):
         self._populate_layers()
 
     def _build_ui(self):
+        from qgis.gui import QgsMapLayerComboBox
+        from qgis.core import QgsMapLayerProxyModel
         layout = QtWidgets.QVBoxLayout(self)
 
         grpL = QtWidgets.QGroupBox("Marker point layers (multiple)")
@@ -620,6 +622,24 @@ class SBPMarkersDialog(QtWidgets.QDialog):
         gl.addLayout(row)
 
         layout.addWidget(grpL)
+
+        # Bathymetry group
+        grpB = QtWidgets.QGroupBox("Bathymetry Raster")
+        gb = QtWidgets.QVBoxLayout(grpB)
+        
+        self.cmbBathymetry = QgsMapLayerComboBox()
+        self.cmbBathymetry.setFilters(QgsMapLayerProxyModel.RasterLayer)
+        gb.addWidget(self.cmbBathymetry)
+        
+        row_b = QtWidgets.QHBoxLayout()
+        self.chkEnableBathymetry = QtWidgets.QCheckBox("Enable Bathymetry")
+        self.chkInvertBathymetry = QtWidgets.QCheckBox("Invert Depth (-1)")
+        row_b.addWidget(self.chkEnableBathymetry)
+        row_b.addWidget(self.chkInvertBathymetry)
+        row_b.addStretch()
+        gb.addLayout(row_b)
+
+        layout.addWidget(grpB)
 
         # Settings group
         grpS = QtWidgets.QGroupBox("Settings")
@@ -643,7 +663,6 @@ class SBPMarkersDialog(QtWidgets.QDialog):
         gs.addWidget(self.cmbColor, 2, 1)
 
 
-
         layout.addWidget(grpS)
 
         # Buttons
@@ -664,6 +683,23 @@ class SBPMarkersDialog(QtWidgets.QDialog):
         self.spinTol.valueChanged.connect(self._update_cluster_label)
 
         self._update_cluster_label()
+
+    def sync_from_settings(self, settings: dict):
+        from qgis.core import QgsProject
+        self.spinTol.setValue(settings.get("tolerance_m", 5.0))
+        if "color" in settings:
+            self.cmbColor.setCurrentText(settings["color"])
+        
+        self.chkEnableBathymetry.setChecked(settings.get("bathy_enabled", False))
+        self.chkInvertBathymetry.setChecked(settings.get("bathy_invert", False))
+        
+        bathy_id = settings.get("bathy_layer_id")
+        if bathy_id:
+            lyr = QgsProject.instance().mapLayer(bathy_id)
+            if lyr:
+                self.cmbBathymetry.setLayer(lyr)
+
+        self._populate_layers(keep_checked_ids=settings.get("layer_ids", []))
 
     def _update_cluster_label(self):
         tol = float(self.spinTol.value())
@@ -715,11 +751,15 @@ class SBPMarkersDialog(QtWidgets.QDialog):
         return out
 
     def _emit_applied(self):
+        bathy_lyr = self.cmbBathymetry.currentLayer()
         params = {
             "layer_ids": [lyr.id() for lyr in self._selected_layers()],
             "tolerance_m": float(self.spinTol.value()),
             "cluster_m": float(self.spinTol.value()) * 3.0,
             "color": str(self.cmbColor.currentText()),
+            "bathy_enabled": self.chkEnableBathymetry.isChecked(),
+            "bathy_invert": self.chkInvertBathymetry.isChecked(),
+            "bathy_layer_id": bathy_lyr.id() if bathy_lyr else None,
         }
         self.applied.emit(params)
 
@@ -1104,6 +1144,7 @@ class SBPViewerRaw(QtWidgets.QWidget):
             self.markersDlg = SBPMarkersDialog(parent=self)
             self.markersDlg.applied.connect(self.onMarkersApplied)
             self.markersDlg.closed.connect(self.onMarkersClosed)
+            self.markersDlg.sync_from_settings(self.marker_settings)
 
         self.markersDlg.show()
         self.markersDlg.raise_()
@@ -1180,7 +1221,10 @@ class SBPViewerRaw(QtWidgets.QWidget):
 
         tol_m = float(self.marker_settings.get("tolerance_m", 5.0) or 0.0)
         cluster_m = float(self.marker_settings.get("cluster_m", 3.0 * tol_m) or 0.0)
-        if tol_m <= 0 or not layers:
+        
+        bathy_enabled = self.marker_settings.get("bathy_enabled", False)
+        
+        if tol_m <= 0 and not bathy_enabled:
             return
 
         n_traces = int(self.amp.shape[0])
@@ -1201,12 +1245,9 @@ class SBPViewerRaw(QtWidgets.QWidget):
                 continue
             indexed_layers.append((lyr.name(), lyr, sidx))
 
-        if not indexed_layers:
-            return
-
         candidates = []  # (layer_name, trace_index, dist_along, best_xy_dist, ref_vals, src_shift_ms)
 
-        for tr_idx in range(n_traces):
+        for tr_idx in range(n_traces if indexed_layers else 0):
             x = float(self.nav_x[tr_idx])
             y = float(self.nav_y[tr_idx])
             if not (np.isfinite(x) and np.isfinite(y)):
@@ -1334,9 +1375,6 @@ class SBPViewerRaw(QtWidgets.QWidget):
 
                 candidates.append((lname, int(tr_idx), float(dist_along), float(best_dxy), ref_vals, float(src_shift_ms), borehole_data))
 
-        if not candidates:
-            return
-
         # Cluster per layer along distance, keep nearest XY in cluster
         out = []
         by_layer = {}
@@ -1381,6 +1419,37 @@ class SBPViewerRaw(QtWidgets.QWidget):
 
         self._markers_cache = out
 
+        # --- Process Raster Layers ---
+        raster_lines = []
+        bathy_enabled = self.marker_settings.get("bathy_enabled", False)
+        bathy_layer_id = self.marker_settings.get("bathy_layer_id")
+        bathy_invert = self.marker_settings.get("bathy_invert", False)
+        
+        if bathy_enabled and bathy_layer_id:
+            from qgis.core import QgsMapLayerType
+            r_lyr = QgsProject.instance().mapLayer(bathy_layer_id)
+            if r_lyr and r_lyr.type() == QgsMapLayerType.RasterLayer:
+                provider = r_lyr.dataProvider()
+                if provider:
+                    trace_depths = []
+                    for i in range(n_traces):
+                        x, y = self.nav_x[i], self.nav_y[i]
+                        val, ok = provider.sample(QgsPointXY(x, y), 1)
+                        if ok and val is not None and not np.isnan(val):
+                            d = float(val)
+                            # Invert logic for the dedicated bathymetry raster
+                            if bathy_invert:
+                                d = d * -1.0
+                            trace_depths.append(d)
+                        else:
+                            trace_depths.append(np.nan)
+
+                    raster_lines.append({
+                        "layer_name": r_lyr.name(),
+                        "depths_m": np.array(trace_depths, dtype=float)
+                    })
+
+        self._raster_lines_cache = raster_lines
     def _clear_markers(self):
         for it in getattr(self, "_marker_items", []):
             try: self.pgview.removeItem(it)
@@ -1396,6 +1465,12 @@ class SBPViewerRaw(QtWidgets.QWidget):
         self._clear_cross_reflectors()
         self._clear_borehole_bars()
 
+        for it in getattr(self, "_raster_line_items", []):
+            try: self.pgview.removeItem(it)
+            except Exception as e:
+                pass
+        self._raster_line_items = []
+
 
 
     def _draw_markers(self):
@@ -1403,7 +1478,7 @@ class SBPViewerRaw(QtWidgets.QWidget):
         if getattr(self, "_loading_layer", False):
             return
         
-        if not self._markers_cache or self.amp is None or self.img is None:
+        if (not self._markers_cache and not getattr(self, "_raster_lines_cache", [])) or self.amp is None or self.img is None:
             return
 
         n_traces = int(self.amp.shape[0])
@@ -1524,6 +1599,33 @@ class SBPViewerRaw(QtWidgets.QWidget):
 
         # --- 3) draw borehole lithology stacked bars ---
         self._draw_borehole_bars()
+
+        # --- 4) draw raster bathymetry lines ---
+        for r_info in getattr(self, "_raster_lines_cache", []):
+            depths_m = r_info["depths_m"]
+            traces = []
+            ys = []
+            for tr, d_m in enumerate(depths_m):
+                if np.isfinite(d_m):
+                    traces.append(tr)
+                    if self.view_domain == "DEPTH":
+                        y_disp = d_m
+                    else:
+                        twt_ms = (d_m * 2.0 / float(self.vw)) * 1000.0
+                        y_disp = self._twt_view_ms_to_display_y(twt_ms)
+                    ys.append(y_disp)
+                else:
+                    traces.append(tr)
+                    ys.append(np.nan)
+
+            if traces:
+                r_pen = pg.mkPen(rgb_marker, width=2, style=QtCore.Qt.SolidLine)
+                it = pg.PlotDataItem(traces, ys, pen=r_pen, name=r_info["layer_name"], connect='finite')
+                it.setZValue(5002)
+                self.pgview.addItem(it)
+                if not hasattr(self, "_raster_line_items"):
+                    self._raster_line_items = []
+                self._raster_line_items.append(it)
 
 
 
@@ -2783,7 +2885,7 @@ class SBPViewerRaw(QtWidgets.QWidget):
 
             # Refresh dialog list but restore the previous tick state
             if self.markersDlg is not None:
-                self.markersDlg._populate_layers(keep_checked_ids=preserved_ids)
+                self.markersDlg.sync_from_settings(self.marker_settings)
 
             if self.freeze_layer:
                 return
@@ -2858,8 +2960,7 @@ class SBPViewerRaw(QtWidgets.QWidget):
         # ✅ refresh markers dialog list so it excludes the NEW nav layer,
         #    but restore the user's previously-ticked marker-layer IDs.
         if self.markersDlg is not None:
-            preserved_ids = list(self.marker_settings.get("layer_ids", []) or [])
-            self.markersDlg._populate_layers(keep_checked_ids=preserved_ids)
+            self.markersDlg.sync_from_settings(self.marker_settings)
 
     def loadNPY(self, path, reset_zoom=True):
         self.current_npy_path = path

@@ -102,6 +102,7 @@ The SBP workflow provides tools for importing acoustic profiles, applying correc
   - **Color Scales:** Adjust your display range (Min/Max), scale to Best/Data, and toggle between colormaps (e.g., Grey, Grey bipolar) and inverted color schemes.
   - **TWT / Depth Display:** Toggle between viewing your profiles in Two-Way Travel Time (ms) or absolute Depth (m), depending on the applied sound velocities.
   - **Markers:** Load QGIS point layers to project vertical borehole/correlation markers directly onto the SBP trace profiles with an adjustable tolerance buffer.
+  - **Bathymetry Raster:** Overlay QGIS raster bathymetry layers directly onto the viewer. Raster depths are dynamically sampled along the navigation track and plotted as a continuous line, with options to invert the depth signs to match different coordinate systems.
 
 **Step 3: Picking Reflectors**
 - Open the **Picking Dialog** to digitize sub-bottom reflectors (e.g., Seabed, geological horizons).

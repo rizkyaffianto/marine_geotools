@@ -5,7 +5,7 @@ from qgis.PyQt.QtCore import QVariant
 
 import pyqtgraph as pg
 import sip
-from qgis.core import QgsProject, QgsMapLayer, QgsWkbTypes
+from qgis.core import QgsProject, QgsMapLayer, QgsWkbTypes, QgsMessageLog, Qgis, QgsVectorLayer
 
 
 
@@ -169,6 +169,8 @@ class MagProfileWidget(QtWidgets.QWidget):
     def _layer_ok(self, layer):
         if layer is None:
             return False
+        if not isinstance(layer, QgsVectorLayer):
+            return False
         try:
             if sip.isdeleted(layer):
                 return False
@@ -182,13 +184,15 @@ class MagProfileWidget(QtWidgets.QWidget):
 
     def _try_disconnect_layer_signals(self, layer):
         try:
-            layer.attributeValueChanged.disconnect(self.refresh_plot_all)
+            if hasattr(layer, "attributeValueChanged"):
+                layer.attributeValueChanged.disconnect(self.refresh_plot_all)
         except Exception as e:
             QgsMessageLog.logMessage(str(e), "PluginLogger", Qgis.Critical)
 
     def _try_connect_layer_signals(self, layer):
         try:
-            layer.attributeValueChanged.connect(self.refresh_plot_all)
+            if hasattr(layer, "attributeValueChanged"):
+                layer.attributeValueChanged.connect(self.refresh_plot_all)
         except Exception as e:
             QgsMessageLog.logMessage(str(e), "PluginLogger", Qgis.Critical)
 
@@ -239,7 +243,9 @@ class MagProfileWidget(QtWidgets.QWidget):
                 y_list.blockSignals(False)
             return
 
-        numeric_fields = [f.name() for f in self.layer.fields() if f.type() in (QVariant.Int, QVariant.Double)]
+        numeric_fields = []
+        if hasattr(self.layer, "fields"):
+            numeric_fields = [f.name() for f in self.layer.fields() if f.type() in (QVariant.Int, QVariant.Double)]
         self.x_combo.addItem("FID")
         self.x_combo.addItems(numeric_fields)
         self.mask_combo.addItems(numeric_fields)
